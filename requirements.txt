@@ -1,0 +1,19 @@
+# Core network and async
+aiohttp
+flask[async]
+python-dotenv
+redis
+asyncio
+gunicorn
+uvicorn
+asgiref
+# Hashing for queue
+mmh3
+
+# Testing
+pytest
+locust
+
+# Optional for gRPC
+grpcio
+grpcio-tools

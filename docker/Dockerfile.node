@@ -1,0 +1,21 @@
+# Gunakan base image Python yang efisien
+FROM python:3.9-slim
+
+# Set working directory di dalam container
+WORKDIR /app
+
+# Salin file requirements terlebih dahulu untuk caching
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Salin seluruh kode aplikasi
+COPY ./src /app/src
+COPY .env.example /app/.env
+
+# Port yang akan diekspos oleh container
+EXPOSE 5001
+
+# Perintah untuk menjalankan aplikasi ketika container dimulai
+CMD ["uvicorn", "src.nodes.base_node:app", "--host", "0.0.0.0", "--port", "5001"]

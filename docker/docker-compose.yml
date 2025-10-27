@@ -1,0 +1,58 @@
+services:
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    networks:
+      - distributed_system_net
+
+  node1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ID=node1
+      - FLASK_PORT=5001
+      - REDIS_HOST=redis
+    networks:
+      - distributed_system_net
+    depends_on:
+      - redis
+    command: uvicorn src.nodes.base_node:app --host 0.0.0.0 --port 5001
+
+  node2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    ports:
+      - "5002:5002"
+    environment:
+      - NODE_ID=node2
+      - FLASK_PORT=5002 # Port internal harus berbeda
+      # Ganti port di PEERS config jika perlu, atau gunakan variabel env
+    networks:
+      - distributed_system_net
+    depends_on:
+      - redis
+    command: uvicorn src.nodes.base_node:app --host 0.0.0.0 --port 5002
+
+  node3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    ports:
+      - "5003:5003"
+    environment:
+      - NODE_ID=node3
+      - FLASK_PORT=5003
+    networks:
+      - distributed_system_net
+    depends_on:
+      - redis
+    command: uvicorn src.nodes.base_node:app --host 0.0.0.0 --port 5003
+
+networks:
+  distributed_system_net:
+    driver: bridge

@@ -1,0 +1,312 @@
+openapi: 3.0.0
+info:
+  title: Distributed Synchronization System API
+  description: API for managing distributed locks, queues, and caches.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5001
+    description: Node 1
+  - url: http://localhost:5002
+    description: Node 2
+  - url: http://localhost:5003
+    description: Node 3
+
+paths:
+  /lock/acquire:
+    post:
+      summary: Acquire a distributed lock (send to Raft Leader)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockRequest'
+      responses:
+        '200':
+          description: Lock acquired or request processed successfully (might be waiting or deadlock detected)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '400':
+          description: Bad request (missing parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericError'
+        '500':
+          description: Internal Server Error (e.g., Raft issue)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericError'
+
+  /lock/release:
+    post:
+      summary: Release a distributed lock (send to Raft Leader)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockReleaseRequest'
+      responses:
+        '200':
+          description: Lock released or request processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '400':
+          description: Bad request (missing parameters)
+        '500':
+          description: Internal Server Error
+
+  /cache/set:
+    post:
+      summary: Set a value in the cache and invalidate peers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CacheSetRequest'
+      responses:
+        '200':
+          description: Cache set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '400':
+          description: Bad request (missing key/value)
+
+  /cache/{key}:
+    get:
+      summary: Get a value from the local cache
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cache hit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  key:
+                    type: string
+                  value: {} # Use 'any' type equivalent
+        '404':
+          description: Cache miss
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericError'
+
+  /queue/push:
+    post:
+      summary: Push a message to a topic (will be routed)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueuePushRequest'
+      responses:
+        '200':
+          description: Message queued or forwarded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '400':
+          description: Bad request (missing topic/message)
+
+  /queue/pop/{topic}/{consumer_id}:
+    get:
+      summary: Pop a message from a topic for a specific consumer (targets responsible node)
+      parameters:
+        - name: topic
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: consumer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message retrieved or queue empty/wrong node
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/QueuePopResponseSuccess'
+                  - $ref: '#/components/schemas/GenericError' # For empty/wrong node
+        '400':
+           description: Bad request (e.g., missing consumer_id conceptually)
+
+  /queue/ack/{topic}:
+    post:
+      summary: Acknowledge successful processing of a message
+      parameters:
+        - name: topic
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueueAckRequest'
+      responses:
+        '200':
+          description: Message acknowledged or failed (e.g., not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '400':
+          description: Bad request (missing consumer_id/message_id)
+
+  /status:
+    get:
+      summary: Get the current status of the node (Raft state, locks)
+      responses:
+        '200':
+          description: Current node status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+
+  /metrics:
+    get:
+      summary: Get performance metrics collected by the node
+      responses:
+        '200':
+          description: Current metrics
+          content:
+            application/json:
+              schema:
+                type: object # Define specific metrics if desired
+
+  # --- Internal Endpoints (Briefly mention or define similarly if needed) ---
+  # /request_vote
+  # /append_entries
+  # /cache/invalidate
+  # /queue/internal/push
+  # /queue/internal/pop/{topic}/{consumer_id}
+  # /queue/internal/ack/{topic}
+
+components:
+  schemas:
+    LockRequest:
+      type: object
+      properties:
+        resource_id:
+          type: string
+        client_id:
+          type: string
+        lock_type:
+          type: string
+          enum: [exclusive, shared]
+          default: exclusive
+      required: [resource_id, client_id]
+    LockReleaseRequest:
+      type: object
+      properties:
+        resource_id:
+          type: string
+        client_id:
+          type: string
+      required: [resource_id, client_id]
+    CacheSetRequest:
+      type: object
+      properties:
+        key:
+          type: string
+        value: {} # Use 'any' type equivalent
+      required: [key, value]
+    QueuePushRequest:
+      type: object
+      properties:
+        topic:
+          type: string
+        message:
+          type: string
+      required: [topic, message]
+    QueueAckRequest:
+      type: object
+      properties:
+        consumer_id:
+          type: string
+        message_id:
+          type: string # The ID returned by the pop request
+      required: [consumer_id, message_id]
+    QueuePopResponseSuccess:
+       type: object
+       properties:
+         success:
+           type: boolean
+           example: true
+         message_id:
+           type: string
+         message:
+           type: string
+    GenericResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        leader: # Optional, included when not leader
+          type: string
+    GenericError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+    StatusResponse:
+       type: object
+       properties:
+         node_id:
+           type: string
+         state:
+           type: string
+           enum: [FOLLOWER, CANDIDATE, LEADER]
+         term:
+           type: integer
+         leader:
+           type: string
+           nullable: true
+         log_length:
+           type: integer
+         commit_index:
+           type: integer
+         locks:
+           type: object
+           properties:
+              active_locks:
+                 type: object
+                 # Define structure for locks if needed
+              wait_list:
+                 type: object
+                 # Define structure for wait list if needed
