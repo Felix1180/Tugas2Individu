@@ -156,7 +156,7 @@ _Untuk dokumentasi API yang lebih formal, lihat `docs/api_spec.yaml`._
 
 Berikut adalah link video demonstrasi sistem ini di YouTube:
 
-[\[Link Video YouTube Anda di Sini\]](https://youtube.com/live/WtSDVJ4TyeU)
+[\[Link Video YouTube\]](https://youtube.com/live/WtSDVJ4TyeU)
 
 ---
 
